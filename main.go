@@ -1,35 +1,74 @@
 package main
 
 import (
-	/* "fmt" */
 	"context"
+	"fmt"
+	"io"
+	"math/rand"
+	"os"
+	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
 
-var colors []tcell.Color = []tcell.Color{tcell.ColorMaroon, tcell.ColorPurple, tcell.ColorLightCyan, tcell.ColorPink, tcell.ColorLimeGreen}
+var colors []tcell.Color = []tcell.Color{tcell.ColorPink, tcell.ColorLightCoral, tcell.ColorIvory, tcell.ColorRed, tcell.ColorSpringGreen, tcell.ColorLightCyan, tcell.ColorRoyalBlue}
 
-func playCurrentTrack(ctx context.Context, table *tview.Table, row int, columnCount int) {
-	idx := 0
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			for i := range columnCount {
-				table.GetCell(row, i).SetTextColor(colors[idx%len(colors)])
-			}
-			time.Sleep(50 * time.Millisecond)
-			idx++
-		}
+func mpvInit(url string) *os.Process {
+	cmd := exec.Command("mpv", "--input-ipc-server=/tmp/mpvsocket", "--no-video", url)
+	cmd.Start()
+	proc, err := os.FindProcess(cmd.Process.Pid)
+	if err != nil {
+		panic(err.Error())
 	}
+	return proc
 }
-func pauseCurrentTrack(table *tview.Table, row int, columnCount int) {
-	for i := range columnCount {
-		table.GetCell(row, i).SetTextColor(tcell.ColorYellow)
+func killTrack(pid *os.Process) bool {
+	err := pid.Kill()
+	if err != nil {
+		panic(err.Error())
+	}
+	return err == nil
+}
+func pauseTrack(shouldPause bool) {
+	socat := exec.Command("socat", "-", "tmp/mpvsocket")
+	stdin, err := socat.StdinPipe()
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	if shouldPause {
+		io.WriteString(stdin, `{ "command": ["set_property", "pause", true] }`)
+	} else {
+		io.WriteString(stdin, `{ "command": ["set_property", "pause", false] }`)
+	}
+	stdin.Close()
+	socat.Wait()
+}
+func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, pauseChan chan bool, row int, columnCount int, url string) {
+	var pid os.Process = *mpvInit(url)
+	for {
+		app.QueueUpdate(func() {
+			select {
+			case <-ctx.Done():
+				killTrack(&pid)
+				for i := range columnCount {
+					table.GetCell(row, i).SetTextColor(tcell.ColorYellow)
+				}
+				return
+			case flag := <-pauseChan:
+				if flag {
+					pauseTrack(true)
+				} else {
+					pauseTrack(false)
+				}
+			default:
+				idx := rand.Intn(len(colors))
+				for i := range columnCount {
+					table.GetCell(row, i).SetTextColor(colors[idx])
+				}
+			}
+		})
 	}
 }
 
@@ -38,42 +77,53 @@ func main() {
 	table := tview.NewTable().
 		SetBorders(true)
 	table.SetBackgroundColor(tcell.ColorNone)
-	song := strings.Split("1 Aimer Re-frain 3:09", " ")
-	cols, rows := len(song), 8
-	var cancel context.CancelFunc
+	song1 := strings.Split("1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", ",")
+	song2 := strings.Split("2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", ",")
+	song3 := strings.Split("3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8", ",")
+
+	cols := len(song1)
 	ctx := context.Background()
 	callCtx, cancel := context.WithCancel(ctx)
-	for r := range rows {
-		for c := range cols {
-			cell := tview.NewTableCell(song[c]).
-				SetTextColor(tcell.ColorYellow).
-				SetAlign(tview.AlignCenter)
-			table.SetCell(r, c, cell)
-		}
+	pauseChan := make(chan bool, 1)
+	trackMap := [2]int{-1, -1}
+	for c := range cols {
+		cell := tview.NewTableCell(song1[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
+		table.SetCell(0, c, cell)
 	}
-	var current_track [2]int = [2]int{0, 0}
+	for c := range cols {
+		cell := tview.NewTableCell(song2[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
+		table.SetCell(1, c, cell)
+	}
+	for c := range cols {
+		cell := tview.NewTableCell(song3[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
+		table.SetCell(2, c, cell)
+	}
 	table.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			table.SetSelectable(true, false)
 		}
 	}).SetSelectedFunc(func(row int, column int) {
-		if current_track[1] == row {
-			if current_track[0] == 0 {
-				current_track[0] = 1
-			} else {
-				current_track[0] = 0
-			}
+		if callCtx.Value("row") == nil || callCtx.Value("row").(int) != row {
 			cancel()
-			pauseCurrentTrack(table, row, table.GetColumnCount())
-			return
-		}
-		if current_track[0] != 0 {
-			cancel()
+			trackMap[0] = row
+			trackMap[1] = 1
+			pauseChan = make(chan bool, 1)
 			callCtx, cancel = context.WithCancel(ctx)
+			callCtx = context.WithValue(callCtx, "row", row)
+			cell := table.GetCell(row, table.GetColumnCount()-1)
+			go playCurrentTrack(callCtx, app, table, pauseChan, row, table.GetColumnCount(), cell.Text)
+		} else {
+			panic("hhiiiii")
+			/* if trackMap[0] != -1 { */
+			/* 	if trackMap[1] == 0 { */
+			/* 		trackMap[1] = 1 */
+			/* 		pauseChan <- false */
+			/* 	} else { */
+			/* 		trackMap[1] = 0 */
+			/* 		pauseChan <- true */
+			/* 	} */
+			/* } */
 		}
-		current_track[0] = 1
-		current_track[1] = row
-		go playCurrentTrack(callCtx, table, row, table.GetColumnCount())
 	})
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
 		panic(err)
