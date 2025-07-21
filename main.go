@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io"
+	"encoding/json"
+	"log"
 	"math/rand"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -31,21 +32,37 @@ func killTrack(pid *os.Process) bool {
 	}
 	return err == nil
 }
-func pauseTrack(shouldPause bool) {
-	socat := exec.Command("socat", "-", "tmp/mpvsocket")
-	stdin, err := socat.StdinPipe()
+func togglePause() {
+	c, err := net.Dial("unix", "/tmp/mpvsocket")
 	if err != nil {
-		fmt.Println(err.Error())
+		panic(err)
 	}
-	if shouldPause {
-		io.WriteString(stdin, `{ "command": ["set_property", "pause", true] }`)
+	defer c.Close()
+
+	_, err = c.Write([]byte(`{ "command": ["get_property", "pause"] }` + "\n"))
+	if err != nil {
+		log.Fatal("write error:", err)
+	}
+	buffer := make([]byte, 2048)
+	n, err := c.Read(buffer)
+	if err != nil {
+		log.Fatal("read error:", err)
+	}
+	tmp := buffer[:n]
+
+	var buffer_ouput map[string]any
+	json.Unmarshal(tmp, &buffer_ouput)
+
+	if buffer_ouput["data"].(bool) {
+		_, err = c.Write([]byte(`{ "command": ["set_property", "pause", false] }` + "\n"))
 	} else {
-		io.WriteString(stdin, `{ "command": ["set_property", "pause", false] }`)
+		_, err = c.Write([]byte(`{ "command": ["set_property", "pause", true] }` + "\n"))
 	}
-	stdin.Close()
-	socat.Wait()
+	if err != nil {
+		log.Fatal("write error:", err)
+	}
 }
-func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, pauseChan chan bool, row int, columnCount int, url string) {
+func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, row int, columnCount int, url string) {
 	var pid os.Process = *mpvInit(url)
 	for {
 		app.QueueUpdate(func() {
@@ -56,12 +73,6 @@ func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.
 					table.GetCell(row, i).SetTextColor(tcell.ColorYellow)
 				}
 				return
-			case flag := <-pauseChan:
-				if flag {
-					pauseTrack(true)
-				} else {
-					pauseTrack(false)
-				}
 			default:
 				idx := rand.Intn(len(colors))
 				for i := range columnCount {
@@ -84,8 +95,6 @@ func main() {
 	cols := len(song1)
 	ctx := context.Background()
 	callCtx, cancel := context.WithCancel(ctx)
-	pauseChan := make(chan bool, 1)
-	trackMap := [2]int{-1, -1}
 	for c := range cols {
 		cell := tview.NewTableCell(song1[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
 		table.SetCell(0, c, cell)
@@ -105,24 +114,12 @@ func main() {
 	}).SetSelectedFunc(func(row int, column int) {
 		if callCtx.Value("row") == nil || callCtx.Value("row").(int) != row {
 			cancel()
-			trackMap[0] = row
-			trackMap[1] = 1
-			pauseChan = make(chan bool, 1)
 			callCtx, cancel = context.WithCancel(ctx)
 			callCtx = context.WithValue(callCtx, "row", row)
 			cell := table.GetCell(row, table.GetColumnCount()-1)
-			go playCurrentTrack(callCtx, app, table, pauseChan, row, table.GetColumnCount(), cell.Text)
+			go playCurrentTrack(callCtx, app, table, row, table.GetColumnCount(), cell.Text)
 		} else {
-			panic("hhiiiii")
-			/* if trackMap[0] != -1 { */
-			/* 	if trackMap[1] == 0 { */
-			/* 		trackMap[1] = 1 */
-			/* 		pauseChan <- false */
-			/* 	} else { */
-			/* 		trackMap[1] = 0 */
-			/* 		pauseChan <- true */
-			/* 	} */
-			/* } */
+			go togglePause()
 		}
 	})
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
