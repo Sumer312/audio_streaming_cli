@@ -1,11 +1,11 @@
 -- +goose Up 
-
-CREATE TABLE songs (
-  title VARCHAR(255) PRIMARY KEY,
-  url VARCHAR(1000) UNIQUE NOT NULL,
+CREATE TABLE Songs (
+  id INTEGER PRIMARY KEY AUTO_INCREMENT,
+  title TEXT UNIQUE NOT NULL,
+  url TEXT UNIQUE NOT NULL,
   created_at TIMESTAMP NOT NULL,
-  updated_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
 );
 
 -- +goose Down
-DROP TABLE songs;
+DROP TABLE Songs;

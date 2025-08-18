@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"log"
 	"math/rand"
@@ -14,7 +15,15 @@ import (
 	"github.com/rivo/tview"
 )
 
-var colors []tcell.Color = []tcell.Color{tcell.ColorPink, tcell.ColorLightCoral, tcell.ColorIvory, tcell.ColorRed, tcell.ColorSpringGreen, tcell.ColorLightCyan, tcell.ColorRoyalBlue}
+var colors []tcell.Color = []tcell.Color{tcell.ColorCadetBlue, tcell.ColorRoyalBlue, tcell.ColorAliceBlue, tcell.ColorCornflowerBlue, tcell.ColorDodgerBlue, tcell.ColorPowderBlue, tcell.ColorMidnightBlue}
+
+func dialConnection() *net.Conn {
+	socket_conection, err := net.Dial("unix", "/tmp/mpvsocket")
+	if err != nil {
+		panic(err)
+	}
+	return &socket_conection
+}
 
 func mpvInit(url string) *os.Process {
 	cmd := exec.Command("mpv", "--input-ipc-server=/tmp/mpvsocket", "--no-video", url)
@@ -25,26 +34,25 @@ func mpvInit(url string) *os.Process {
 	}
 	return proc
 }
-func killTrack(pid *os.Process) bool {
-	err := pid.Kill()
-	if err != nil {
-		panic(err.Error())
-	}
-	return err == nil
-}
-func togglePause() {
-	c, err := net.Dial("unix", "/tmp/mpvsocket")
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
 
-	_, err = c.Write([]byte(`{ "command": ["get_property", "pause"] }` + "\n"))
+func quitTrack() {
+	socket_conection := *dialConnection()
+	defer socket_conection.Close()
+	_, err := socket_conection.Write([]byte(`{ "command": ["quit"] }` + "\n"))
+	if err != nil {
+		log.Fatal("write error:", err)
+	}
+}
+
+func togglePause() {
+	socket_conection := *dialConnection()
+	defer socket_conection.Close()
+	_, err := socket_conection.Write([]byte(`{ "command": ["get_property", "pause"] }` + "\n"))
 	if err != nil {
 		log.Fatal("write error:", err)
 	}
 	buffer := make([]byte, 2048)
-	n, err := c.Read(buffer)
+	n, err := socket_conection.Read(buffer)
 	if err != nil {
 		log.Fatal("read error:", err)
 	}
@@ -54,21 +62,22 @@ func togglePause() {
 	json.Unmarshal(tmp, &buffer_ouput)
 
 	if buffer_ouput["data"].(bool) {
-		_, err = c.Write([]byte(`{ "command": ["set_property", "pause", false] }` + "\n"))
+		_, err = socket_conection.Write([]byte(`{ "command": ["set_property", "pause", false] }` + "\n"))
 	} else {
-		_, err = c.Write([]byte(`{ "command": ["set_property", "pause", true] }` + "\n"))
+		_, err = socket_conection.Write([]byte(`{ "command": ["set_property", "pause", true] }` + "\n"))
 	}
 	if err != nil {
 		log.Fatal("write error:", err)
 	}
 }
+
 func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, row int, columnCount int, url string) {
-	var pid os.Process = *mpvInit(url)
+	mpvInit(url)
 	for {
 		app.QueueUpdate(func() {
 			select {
 			case <-ctx.Done():
-				killTrack(&pid)
+				quitTrack()
 				for i := range columnCount {
 					table.GetCell(row, i).SetTextColor(tcell.ColorYellow)
 				}
@@ -85,16 +94,14 @@ func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.
 
 func main() {
 	app := tview.NewApplication()
-	table := tview.NewTable().
-		SetBorders(true)
+	table := tview.NewTable()
 	table.SetBackgroundColor(tcell.ColorNone)
 	song1 := strings.Split("1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", ",")
 	song2 := strings.Split("2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", ",")
 	song3 := strings.Split("3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8", ",")
 
 	cols := len(song1)
-	ctx := context.Background()
-	callCtx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	for c := range cols {
 		cell := tview.NewTableCell(song1[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
 		table.SetCell(0, c, cell)
@@ -112,12 +119,12 @@ func main() {
 			table.SetSelectable(true, false)
 		}
 	}).SetSelectedFunc(func(row int, column int) {
-		if callCtx.Value("row") == nil || callCtx.Value("row").(int) != row {
+		if ctx.Value("row") == nil || ctx.Value("row").(int) != row {
 			cancel()
-			callCtx, cancel = context.WithCancel(ctx)
-			callCtx = context.WithValue(callCtx, "row", row)
+			ctx, cancel = context.WithCancel(context.Background())
+			ctx = context.WithValue(ctx, "row", row)
 			cell := table.GetCell(row, table.GetColumnCount()-1)
-			go playCurrentTrack(callCtx, app, table, row, table.GetColumnCount(), cell.Text)
+			go playCurrentTrack(ctx, app, table, row, table.GetColumnCount(), cell.Text)
 		} else {
 			go togglePause()
 		}
@@ -125,4 +132,12 @@ func main() {
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
 		panic(err)
 	}
+}
+
+func initializeDatabase() {
+	db, err := sql.Open("sqlite3", "./songsdb.sqlite")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
 }
