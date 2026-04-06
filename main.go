@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"log"
-	"math/rand"
+	/* "math/rand" */
 	"net"
 	"os"
 	"os/exec"
@@ -20,7 +19,7 @@ var colors []tcell.Color = []tcell.Color{tcell.ColorCadetBlue, tcell.ColorRoyalB
 func dialConnection() *net.Conn {
 	socket_conection, err := net.Dial("unix", "/tmp/mpvsocket")
 	if err != nil {
-		panic(err)
+		return nil
 	}
 	return &socket_conection
 }
@@ -72,48 +71,45 @@ func togglePause() {
 }
 
 func playCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, row int, columnCount int, url string) {
-	mpvInit(url)
-	for {
-		app.QueueUpdate(func() {
-			select {
-			case <-ctx.Done():
-				quitTrack()
-				for i := range columnCount {
-					table.GetCell(row, i).SetTextColor(tcell.ColorYellow)
-				}
-				return
-			default:
-				idx := rand.Intn(len(colors))
-				for i := range columnCount {
-					table.GetCell(row, i).SetTextColor(colors[idx])
-				}
-			}
-		})
+	if dialConnection() != nil {
+		quitTrack()
 	}
+	mpvInit(url)
+	/* for { */
+	/* 	app.QueueUpdate(func() { */
+	/* 		select { */
+	/* 		case <-ctx.Done(): */
+	/* 			quitTrack() */
+	/* 			for i := range columnCount { */
+	/* 				table.GetCell(row, i).SetTextColor(tcell.ColorYellow) */
+	/* 			} */
+	/* 			return */
+	/* 		default: */
+	/* 			idx := rand.Intn(len(colors)) */
+	/* 			for i := range columnCount { */
+	/* 				table.GetCell(row, i).SetTextColor(colors[idx]) */
+	/* 			} */
+	/* 		} */
+	/* 	}) */
+	/* } */
 }
 
 func main() {
 	app := tview.NewApplication()
 	table := tview.NewTable()
 	table.SetBackgroundColor(tcell.ColorNone)
-	song1 := strings.Split("1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", ",")
-	song2 := strings.Split("2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", ",")
-	song3 := strings.Split("3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8", ",")
+	var songs []string = []string{"1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", "2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", "3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8"}
 
-	cols := len(song1)
 	ctx, cancel := context.WithCancel(context.Background())
-	for c := range cols {
-		cell := tview.NewTableCell(song1[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
-		table.SetCell(0, c, cell)
+
+	for i := range songs {
+		song := strings.Split(songs[i], ",")
+		for c := range len(song) {
+			cell := tview.NewTableCell(song[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
+			table.SetCell(i, c, cell)
+		}
 	}
-	for c := range cols {
-		cell := tview.NewTableCell(song2[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
-		table.SetCell(1, c, cell)
-	}
-	for c := range cols {
-		cell := tview.NewTableCell(song3[c]).SetTextColor(tcell.ColorYellow).SetAlign(tview.AlignCenter)
-		table.SetCell(2, c, cell)
-	}
+
 	table.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
 			table.SetSelectable(true, false)
@@ -132,12 +128,4 @@ func main() {
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
 		panic(err)
 	}
-}
-
-func initializeDatabase() {
-	db, err := sql.Open("sqlite3", "./songsdb.sqlite")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
 }
