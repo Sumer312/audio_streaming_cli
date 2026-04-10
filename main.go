@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"log"
+	"os"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
@@ -9,8 +11,10 @@ import (
 	trackcontrols "github.com/sumer312/auditerm/trackControls"
 )
 
-
 func main() {
+	logFile := SetupLogger()
+	defer logFile.Close()
+	log.Print("App started")
 	app := tview.NewApplication()
 	table := tview.NewTable()
 	table.SetBackgroundColor(tcell.ColorNone)
@@ -42,6 +46,8 @@ func main() {
 		}
 	})
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
+		f, err := os.OpenFile("error.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		log.SetOutput(f)
 		panic(err)
 	}
 }

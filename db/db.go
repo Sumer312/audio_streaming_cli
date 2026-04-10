@@ -8,7 +8,7 @@ import (
 func InitializeDB() {
 	db, err := sql.Open("sqlite3", "./songsdb.sqlite")
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 	defer db.Close()
 }

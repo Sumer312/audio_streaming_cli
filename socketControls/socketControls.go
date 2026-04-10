@@ -1,6 +1,7 @@
 package socketcantrols
 
 import (
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -9,7 +10,7 @@ import (
 func DialConnection() *net.Conn {
 	socket_conection, err := net.Dial("unix", "/tmp/mpvsocket")
 	if err != nil {
-		panic(err)
+		log.Panic(err)
 	}
 	return &socket_conection
 }
@@ -19,7 +20,7 @@ func MpvInit(url string) *os.Process {
 	cmd.Start()
 	proc, err := os.FindProcess(cmd.Process.Pid)
 	if err != nil {
-		panic(err.Error())
+		log.Panic(err)
 	}
 	return proc
 }

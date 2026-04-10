@@ -18,7 +18,7 @@ func QuitTrack() {
 	defer socket_conection.Close()
 	_, err := socket_conection.Write([]byte(`{ "command": ["quit"] }` + "\n"))
 	if err != nil {
-		log.Fatal("write error:", err)
+		log.Panic("write error:", err)
 	}
 }
 
@@ -27,12 +27,12 @@ func TogglePause() {
 	defer socket_conection.Close()
 	_, err := socket_conection.Write([]byte(`{ "command": ["get_property", "pause"] }` + "\n"))
 	if err != nil {
-		log.Fatal("write error:", err)
+		log.Panic("write error:", err)
 	}
 	buffer := make([]byte, 2048)
 	n, err := socket_conection.Read(buffer)
 	if err != nil {
-		log.Fatal("read error:", err)
+		log.Panic("read error:", err)
 	}
 	tmp := buffer[:n]
 
@@ -45,7 +45,7 @@ func TogglePause() {
 		_, err = socket_conection.Write([]byte(`{ "command": ["set_property", "pause", true] }` + "\n"))
 	}
 	if err != nil {
-		log.Fatal("write error:", err)
+		log.Panic("write error:", err)
 	}
 }
 
