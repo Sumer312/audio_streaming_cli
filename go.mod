@@ -1,4 +1,4 @@
-module tcell
+module github.com/sumer312/auditerm
 
 go 1.22.4
 

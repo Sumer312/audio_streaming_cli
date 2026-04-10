@@ -1,7 +1,7 @@
 include .env
 
 run:
-	@go run main.go
+	@go build && ./auditerm
 
 migrateUp:
 	@goose -dir ./sql/schems $(DB_TYPE) $(DB_URL) up
