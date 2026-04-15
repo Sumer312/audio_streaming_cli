@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -49,27 +50,48 @@ func TogglePause() {
 	}
 }
 
-func PlayCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, rowIndex int, columnCount int, url string) {
-	/* if socketcontrols.DialConnection() != nil { */
-	/* 	QuitTrack() */
-	/* } */
-	socketcontrols.MpvInit(url)
+func StartFlicker(ctx context.Context, app *tview.Application, table *tview.Table, rowIndex int, columnCount int) {
+	ticker := time.NewTicker(150 * time.Millisecond)
+	defer ticker.Stop()
 	for {
-		app.QueueUpdate(func() {
-			select {
-			case <-ctx.Done():
-				QuitTrack()
+		select {
+		case <-ctx.Done():
+			app.QueueUpdate(func() {
 				for i := range columnCount {
 					table.GetCell(rowIndex, i).SetTextColor(tcell.ColorYellow)
 				}
-				return
-			default:
+			})
+			return
+		case <-ticker.C:
+			app.QueueUpdate(func() {
 				idx := rand.Intn(len(colors))
 				for i := range columnCount {
 					table.GetCell(rowIndex, i).SetTextColor(colors[idx])
 				}
-			}
-		})
-
+			})
+		}
+	}
+}
+func PlayCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, rowIndex int, columnCount int, url string) {
+	socketcontrols.MpvInit(url)
+	ticker := time.NewTicker(150 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			app.QueueUpdate(func() {
+				for i := range columnCount {
+					table.GetCell(rowIndex, i).SetTextColor(tcell.ColorYellow)
+				}
+			})
+			return
+		case <-ticker.C:
+			app.QueueUpdate(func() {
+				idx := rand.Intn(len(colors))
+				for i := range columnCount {
+					table.GetCell(rowIndex, i).SetTextColor(colors[idx])
+				}
+			})
+		}
 	}
 }

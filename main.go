@@ -8,6 +8,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+
+	/* socketcantrols "github.com/sumer312/auditerm/socketControls" */
 	trackcontrols "github.com/sumer312/auditerm/trackControls"
 )
 
@@ -20,7 +22,7 @@ func main() {
 	table.SetBackgroundColor(tcell.ColorNone)
 	var songs []string = []string{"1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", "2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", "3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8"}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelFlicker := context.WithCancel(context.Background())
 
 	for i := range songs {
 		song := strings.Split(songs[i], ",")
@@ -36,13 +38,13 @@ func main() {
 		}
 	}).SetSelectedFunc(func(row int, column int) {
 		if ctx.Value("row") == nil || ctx.Value("row").(int) != row {
-			cancel()
-			ctx, cancel = context.WithCancel(context.Background())
+			cancelFlicker()
+			ctx, cancelFlicker = context.WithCancel(context.Background())
 			ctx = context.WithValue(ctx, "row", row)
 			url := table.GetCell(row, table.GetColumnCount()-1).Text
 			go trackcontrols.PlayCurrentTrack(ctx, app, table, row, table.GetColumnCount(), url)
 		} else {
-			go trackcontrols.TogglePause()
+			trackcontrols.TogglePause()
 		}
 	})
 	if err := app.SetRoot(table, true).SetFocus(table).Run(); err != nil {
