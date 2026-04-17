@@ -10,7 +10,8 @@ import (
 func DialConnection() *net.Conn {
 	socket_conection, err := net.Dial("unix", "/tmp/mpvsocket")
 	if err != nil {
-		log.Panic(err)
+		log.Print(err)
+		return nil
 	}
 	return &socket_conection
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
-	/* socketcantrols "github.com/sumer312/auditerm/socketControls" */
+	socketcantrols "github.com/sumer312/auditerm/socketControls"
 	trackcontrols "github.com/sumer312/auditerm/trackControls"
 )
 
@@ -38,10 +38,17 @@ func main() {
 		}
 	}).SetSelectedFunc(func(row int, column int) {
 		if ctx.Value("row") == nil || ctx.Value("row").(int) != row {
+			if socketcantrols.DialConnection() != nil {
+				trackcontrols.QuitTrack()
+			}
 			cancelFlicker()
 			ctx, cancelFlicker = context.WithCancel(context.Background())
 			ctx = context.WithValue(ctx, "row", row)
 			url := table.GetCell(row, table.GetColumnCount()-1).Text
+			/* go func() { */
+			/* 	trackcontrols.StartFlicker(ctx, app, table, row, table.GetColumnCount()) */
+			/* 	socketcantrols.MpvInit(url) */
+			/* }() */
 			go trackcontrols.PlayCurrentTrack(ctx, app, table, row, table.GetColumnCount(), url)
 		} else {
 			trackcontrols.TogglePause()

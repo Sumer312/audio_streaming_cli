@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -21,6 +22,7 @@ func QuitTrack() {
 	if err != nil {
 		log.Panic("write error:", err)
 	}
+	os.Remove("/tmp/mpvsocket")
 }
 
 func TogglePause() {
@@ -74,8 +76,6 @@ func StartFlicker(ctx context.Context, app *tview.Application, table *tview.Tabl
 }
 func PlayCurrentTrack(ctx context.Context, app *tview.Application, table *tview.Table, rowIndex int, columnCount int, url string) {
 	socketcontrols.MpvInit(url)
-	ticker := time.NewTicker(150 * time.Millisecond)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -85,7 +85,7 @@ func PlayCurrentTrack(ctx context.Context, app *tview.Application, table *tview.
 				}
 			})
 			return
-		case <-ticker.C:
+		default:
 			app.QueueUpdate(func() {
 				idx := rand.Intn(len(colors))
 				for i := range columnCount {
