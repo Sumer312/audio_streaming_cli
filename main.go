@@ -13,17 +13,8 @@ import (
 	trackcontrols "github.com/sumer312/auditerm/trackControls"
 )
 
-func main() {
-	logFile := SetupLogger()
-	defer logFile.Close()
-	log.Print("App started")
-	app := tview.NewApplication()
-	table := tview.NewTable()
-	table.SetBackgroundColor(tcell.ColorNone)
+func PopulateTable(table *tview.Table) {
 	var songs []string = []string{"1,The pointer sisters,Hot-together,4:14,https://www.youtube.com/watch?v=7k0eEdoZ9JI", "2,Aimer,Kiro,6:51,https://www.youtube.com/watch?v=M3J1KRD1H1Q", "3,Hige,Mixed Nuts,3:32,https://www.youtube.com/watch?v=Wf8XuAoCjN8"}
-
-	ctx, cancelFlicker := context.WithCancel(context.Background())
-
 	for i := range songs {
 		song := strings.Split(songs[i], ",")
 		for c := range len(song) {
@@ -31,6 +22,21 @@ func main() {
 			table.SetCell(i, c, cell)
 		}
 	}
+}
+
+/* func PlayTrack(app *tview.Application, table *tview.Table, ctx context.Context, cancelFlicker context.CancelFunc, row int) { */
+/* } */
+
+func main() {
+	logFile := SetupLogger()
+	defer logFile.Close()
+	log.Print("App started")
+	app := tview.NewApplication()
+	table := tview.NewTable()
+	table.SetBackgroundColor(tcell.ColorNone)
+
+	ctx, cancelFlicker := context.WithCancel(context.Background())
+	PopulateTable(table)
 
 	table.SetDoneFunc(func(key tcell.Key) {
 		if key == tcell.KeyEnter {
@@ -49,7 +55,6 @@ func main() {
 				socketcantrols.MpvInit(url)
 				trackcontrols.StartFlicker(ctx, app, table, row, table.GetColumnCount())
 			}()
-			/* go trackcontrols.PlayCurrentTrack(ctx, app, table, row, table.GetColumnCount(), url) */
 		} else {
 			trackcontrols.TogglePause()
 		}

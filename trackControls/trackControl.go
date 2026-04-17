@@ -18,11 +18,11 @@ var colors []tcell.Color = []tcell.Color{tcell.ColorCadetBlue, tcell.ColorRoyalB
 func QuitTrack() {
 	socket_conection := *socketcontrols.DialConnection()
 	defer socket_conection.Close()
+	defer os.Remove("/tmp/mpvsocket")
 	_, err := socket_conection.Write([]byte(`{ "command": ["quit"] }` + "\n"))
 	if err != nil {
 		log.Panic("write error:", err)
 	}
-	os.Remove("/tmp/mpvsocket")
 }
 
 func TogglePause() {
