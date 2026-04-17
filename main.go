@@ -45,11 +45,11 @@ func main() {
 			ctx, cancelFlicker = context.WithCancel(context.Background())
 			ctx = context.WithValue(ctx, "row", row)
 			url := table.GetCell(row, table.GetColumnCount()-1).Text
-			/* go func() { */
-			/* 	trackcontrols.StartFlicker(ctx, app, table, row, table.GetColumnCount()) */
-			/* 	socketcantrols.MpvInit(url) */
-			/* }() */
-			go trackcontrols.PlayCurrentTrack(ctx, app, table, row, table.GetColumnCount(), url)
+			go func() {
+				socketcantrols.MpvInit(url)
+				trackcontrols.StartFlicker(ctx, app, table, row, table.GetColumnCount())
+			}()
+			/* go trackcontrols.PlayCurrentTrack(ctx, app, table, row, table.GetColumnCount(), url) */
 		} else {
 			trackcontrols.TogglePause()
 		}
